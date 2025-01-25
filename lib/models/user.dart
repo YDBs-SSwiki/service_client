@@ -1,21 +1,30 @@
 // lib/models/user.dart
-class User {
+
+class UserInfo {
   final int userId;
   final String username;
-  final String? emailAddress;
   final String role;
+  final String? emailAddress;
+  final String? createdAt;
+  final String? lastModifiedAt;
 
-  User({
+  UserInfo({
     required this.userId,
     required this.username,
-    this.emailAddress,
     required this.role,
+    this.emailAddress,
+    this.createdAt,
+    this.lastModifiedAt,
   });
 
-  factory User.fromJson(Map<String, dynamic> j) => User(
-    userId: j['userId'],
-    username: j['username'],
-    emailAddress: j['emailAddress'],
-    role: j['role'] ?? 'USER',
-  );
+  factory UserInfo.fromJson(Map<String, dynamic> j) {
+    return UserInfo(
+      userId: j['userId'],
+      username: j['username'],
+      role: j['role'] ?? 'USER',
+      emailAddress: j['emailAddress'],
+      createdAt: j['createdAt'],
+      lastModifiedAt: j['lastModifiedAt'],
+    );
+  }
 }

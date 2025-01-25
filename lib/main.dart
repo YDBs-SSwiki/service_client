@@ -6,7 +6,6 @@ import 'screens/bread_detail_screen.dart';
 import 'screens/mypage_screen.dart';
 import 'screens/settings_screen.dart';
 
-// 최종 메인앱
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -18,12 +17,10 @@ class _MyAppState extends State<MyApp> {
   bool _isDarkMode = false;
 
   void _toggleDarkMode(bool val) {
-    setState(() {
-      _isDarkMode = val;
-    });
+    setState(() => _isDarkMode = val);
   }
 
-  // 버튼 스타일 공통
+  // 공통 버튼 스타일
   ButtonStyle get _buttonStyle => ButtonStyle(
     backgroundColor: MaterialStateProperty.all(const Color(0xFFF7EFE6)),
     foregroundColor: MaterialStateProperty.all(const Color(0xFF382E1C)),
@@ -31,7 +28,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Light theme
+    // 라이트 테마
     final themeLight = ThemeData(
       brightness: Brightness.light,
       primarySwatch: Colors.brown,
@@ -45,7 +42,7 @@ class _MyAppState extends State<MyApp> {
       outlinedButtonTheme: OutlinedButtonThemeData(style: _buttonStyle),
     );
 
-    // Dark theme(갈색)
+    // 다크 테마(갈색 톤)
     final themeDark = ThemeData(
       brightness: Brightness.dark,
       primarySwatch: Colors.brown,
@@ -72,8 +69,6 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'SungsimWiki',
       theme: _isDarkMode ? themeDark : themeLight,
-
-      // home 대신 Named Routes 사용
       initialRoute: '/',
       routes: {
         '/': (ctx) => NavigationWrapper(
@@ -105,7 +100,6 @@ class _MyAppState extends State<MyApp> {
           onToggleDarkMode: _toggleDarkMode,
         ),
       },
-      // onUnknownRoute -> 에러 페이지
     );
   }
 }

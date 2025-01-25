@@ -1,9 +1,9 @@
 // lib/screens/search_result_screen.dart
+
 import 'package:flutter/material.dart';
 import '../services/bread_service.dart';
 import '../models/bread.dart';
 import '../widgets/common/custom_appbar.dart';
-import 'bread_detail_screen.dart';
 
 class SearchResultScreen extends StatefulWidget {
   final String keyword;
@@ -39,8 +39,8 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
     });
   }
 
-  void _onSearchSubmitted(String val){
-    Navigator.pushReplacementNamed(context, '/searchResult', arguments: val);
+  void _onSearch(String val){
+    Navigator.pushReplacementNamed(context, '/searchResult', arguments:val);
   }
 
   @override
@@ -48,7 +48,7 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
     return Scaffold(
       appBar: CustomAppBar(
         isHome:false,
-        onSearchSubmitted:_onSearchSubmitted,
+        onSearchSubmitted:_onSearch,
       ),
       body: _loading
           ? const Center(child:CircularProgressIndicator())
@@ -61,7 +61,10 @@ class _SearchResultScreenState extends State<SearchResultScreen> {
                 ? Image.network(b.imageUrl!, width:50, fit:BoxFit.cover)
                 : const Icon(Icons.bakery_dining),
             title: Text(b.name),
-            subtitle: Text(b.detail),
+            // 하단 설명은 detail 일부만...
+            subtitle: (b.detail!=null && b.detail!.length>30)
+                ? Text('${b.detail!.substring(0,30)}...')
+                : Text(b.detail??''),
             onTap: (){
               Navigator.pushNamed(context, '/breadDetail', arguments:b.breadId);
             },

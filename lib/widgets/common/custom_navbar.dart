@@ -1,10 +1,7 @@
 // lib/widgets/common/custom_navbar.dart
+
 import 'package:flutter/material.dart';
 
-/// NavBar:
-/// - 비로그인: 홈/로그인/설정
-/// - 로그인: 홈/마이페이지/설정
-/// - 배경 #382E1C, 활성 #F7EFE6, 비활성 #CC9C66
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
   final bool isLoggedIn;

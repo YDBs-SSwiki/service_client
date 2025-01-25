@@ -8,8 +8,6 @@ import '../screens/home_screen.dart';
 import '../screens/mypage_screen.dart';
 import '../screens/settings_screen.dart';
 
-/// NavBar:
-///  0=Home, 1=MyPage/Login, 2=Settings
 class NavigationWrapper extends StatefulWidget {
   final bool isDarkMode;
   final ValueChanged<bool> onToggleDarkMode;
@@ -25,14 +23,14 @@ class NavigationWrapper extends StatefulWidget {
 }
 
 class _NavigationWrapperState extends State<NavigationWrapper> {
-  int _currentIndex=0;
+  int _currentIndex = 0;
 
   bool get _isLoggedIn => AuthService.isLoggedIn;
 
   late List<Widget> _pages;
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
     _pages = [
       HomeScreen(isDarkMode: widget.isDarkMode, onToggleDarkMode: widget.onToggleDarkMode),
@@ -42,25 +40,26 @@ class _NavigationWrapperState extends State<NavigationWrapper> {
   }
 
   void _onTapNav(int newIndex) async {
-    if(newIndex==_currentIndex) return;
+    if (newIndex == _currentIndex) return;
 
-    // if tap=1 but not logged in -> login popup
-    if(newIndex==1 && !_isLoggedIn){
-      final result = await showModalBottomSheet(
+    // 로그인 안 되어 있고 탭=1(마이페이지) → 로그인 팝업
+    if (newIndex == 1 && !_isLoggedIn) {
+      await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        builder: (_)=> const LoginSheet(),
+        builder: (_) => const LoginSheet(),
       );
-      if(AuthService.isLoggedIn){
-        setState(()=>_currentIndex=1);
+      if (AuthService.isLoggedIn) {
+        setState(() => _currentIndex = 1);
       }
       return;
     }
-    setState(()=>_currentIndex=newIndex);
+
+    setState(() => _currentIndex = newIndex);
   }
 
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_currentIndex],
       bottomNavigationBar: CustomNavBar(
