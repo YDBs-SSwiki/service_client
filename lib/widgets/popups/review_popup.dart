@@ -22,6 +22,7 @@ class _ReviewPopupState extends State<ReviewPopup> {
   int _rating=5;
   final _contentCtrl = TextEditingController();
 
+  String? _imagePath; // 선택 이미지
   bool get isUpdate => widget.existingReview!=null;
 
   @override
@@ -30,6 +31,31 @@ class _ReviewPopupState extends State<ReviewPopup> {
     if(isUpdate){
       _rating = widget.existingReview!.rating;
       _contentCtrl.text = widget.existingReview!.content;
+      // 이미지 수정은 별도
+    }
+  }
+
+  void _pickImage() async {
+    // TODO: file picker
+    setState(()=>_imagePath = null);
+  }
+
+  void _pickRating() async {
+    final val = await showDialog<int>(
+        context: context,
+        builder:(ctx)=> SimpleDialog(
+          title: const Text('평점'),
+          children:[
+            for(int i=1;i<=5;i++)
+              SimpleDialogOption(
+                child: Text('$i점'),
+                onPressed: ()=> Navigator.pop(ctx,i),
+              )
+          ],
+        )
+    );
+    if(val!=null){
+      setState(()=> _rating=val);
     }
   }
 
@@ -39,34 +65,14 @@ class _ReviewPopupState extends State<ReviewPopup> {
       Navigator.pop(context,false);
       return;
     }
-    // 이미지 업로드(선택) => 생략
     final ok = await ReviewService.createOrUpdateReview(
       breadId: widget.breadId,
       userId: uid,
       rating:_rating,
       content:_contentCtrl.text,
+      imagePath:_imagePath,
     );
     Navigator.pop(context, ok);
-  }
-
-  void _pickImage(){}
-  void _pickRating() async {
-    final val = await showDialog<int>(
-        context: context,
-        builder:(ctx)=> SimpleDialog(
-          title: const Text('평점'),
-          children: [
-            for(int i=1;i<=5;i++)
-              SimpleDialogOption(
-                child: Text('$i점'),
-                onPressed: ()=>Navigator.pop(ctx,i),
-              )
-          ],
-        )
-    );
-    if(val!=null){
-      setState(()=>_rating=val);
-    }
   }
 
   @override
@@ -76,11 +82,11 @@ class _ReviewPopupState extends State<ReviewPopup> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
-          children: [
+          children:[
             Container(
               height:150,
               color: Colors.grey[300],
-              child: const Center(child:Text('이미지 미리보기(옵션)')),
+              child: Center(child:Text(_imagePath==null?'(이미지 없음)':_imagePath!)),
             ),
             const SizedBox(height:8),
             Row(

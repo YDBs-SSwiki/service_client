@@ -5,7 +5,7 @@ import '../models/review.dart';
 import 'api_client.dart';
 
 class ReviewService {
-  // GET /bread/{breadId}/reviews
+  /// GET /bread/{breadId}/reviews
   static Future<List<Review>> getBreadReviews(int breadId) async {
     try {
       final res = await ApiClient.dio.get('/bread/$breadId/reviews');
@@ -18,7 +18,7 @@ class ReviewService {
     }
   }
 
-  // POST /reviews => 리뷰 생성/수정 (multipart)
+  /// POST /reviews => 리뷰 작성/수정 (multipart)
   static Future<bool> createOrUpdateReview({
     required int breadId,
     required int userId,
@@ -41,14 +41,14 @@ class ReviewService {
       }
 
       final res = await ApiClient.dio.post('/reviews', data: formData);
-      return res.statusCode==200;
+      return (res.statusCode==200);
     } catch(e){
       log('createReview error: $e');
       return false;
     }
   }
 
-  // POST /reviews/{reviewId}/likes => { userId, like:true/false }
+  /// POST /reviews/{reviewId}/likes => {userId, like:true/false}
   static Future<int> updateReviewLike({
     required int reviewId,
     required int userId,
@@ -68,11 +68,11 @@ class ReviewService {
     }
   }
 
-  // DELETE /reviews/{reviewId}
+  /// DELETE /reviews/{reviewId}
   static Future<bool> deleteReview(int reviewId) async {
     try {
       final res = await ApiClient.dio.delete('/reviews/$reviewId');
-      return res.statusCode==200;
+      return (res.statusCode==200);
     } catch(e){
       log('deleteReview error: $e');
       return false;

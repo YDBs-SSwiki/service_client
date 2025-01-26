@@ -1,11 +1,10 @@
 // lib/services/user_service.dart
-
 import 'dart:developer';
 import '../models/user.dart';
 import 'api_client.dart';
 
 class UserService {
-  // GET /users/{userId}
+  /// GET /users/{userId}
   static Future<UserInfo?> getUserInfo(int userId) async {
     try {
       final res = await ApiClient.dio.get('/users/$userId');
@@ -16,7 +15,7 @@ class UserService {
     }
   }
 
-  // POST /users/{userId}/update => 닉네임 변경
+  /// POST /users/{userId}/update => { "newUsername":... }
   static Future<bool> updateUserNickname(int userId, String newUsername) async {
     try {
       final body = {
@@ -30,7 +29,7 @@ class UserService {
     }
   }
 
-  // GET /users/{userId}/reviews => { userId, reviews: [ {...}, ... ] }
+  /// GET /users/{userId}/reviews => { userId, reviews:[ ... ] }
   static Future<List<Map<String,dynamic>>> getUserReviews(int userId) async {
     try {
       final res = await ApiClient.dio.get('/users/$userId/reviews');

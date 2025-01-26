@@ -33,16 +33,25 @@ class _NavigationWrapperState extends State<NavigationWrapper> {
   void initState() {
     super.initState();
     _pages = [
-      HomeScreen(isDarkMode: widget.isDarkMode, onToggleDarkMode: widget.onToggleDarkMode),
-      MyPageScreen(isDarkMode: widget.isDarkMode, onToggleDarkMode: widget.onToggleDarkMode),
-      SettingsScreen(isDarkMode: widget.isDarkMode, onToggleDarkMode: widget.onToggleDarkMode),
+      HomeScreen(
+        isDarkMode: widget.isDarkMode,
+        onToggleDarkMode: widget.onToggleDarkMode,
+      ),
+      MyPageScreen(
+        isDarkMode: widget.isDarkMode,
+        onToggleDarkMode: widget.onToggleDarkMode,
+      ),
+      SettingsScreen(
+        isDarkMode: widget.isDarkMode,
+        onToggleDarkMode: widget.onToggleDarkMode,
+      ),
     ];
   }
 
   void _onTapNav(int newIndex) async {
     if (newIndex == _currentIndex) return;
 
-    // 로그인 안 되어 있고 탭=1(마이페이지) → 로그인 팝업
+    // 로그인 안 돼있고 탭=1(마이페이지) => 로그인 팝업
     if (newIndex == 1 && !_isLoggedIn) {
       await showModalBottomSheet(
         context: context,

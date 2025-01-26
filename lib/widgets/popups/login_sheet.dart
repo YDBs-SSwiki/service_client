@@ -1,7 +1,9 @@
 // lib/widgets/popups/login_sheet.dart
+
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 
+/// 로그인 BottomSheet
 class LoginSheet extends StatefulWidget {
   const LoginSheet({Key? key}) : super(key: key);
 
@@ -33,7 +35,7 @@ class _LoginSheetState extends State<LoginSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom:MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
-        child:Column(
+        child: Column(
           mainAxisSize:MainAxisSize.min,
           children:[
             const SizedBox(height:16),

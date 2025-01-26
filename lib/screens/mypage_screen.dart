@@ -5,6 +5,8 @@ import '../services/auth_service.dart';
 import '../services/favorite_service.dart';
 import '../services/user_service.dart';
 import '../widgets/common/custom_appbar.dart';
+import '../services/bread_service.dart';
+import '../models/bread.dart';
 
 class MyPageScreen extends StatefulWidget {
   final bool isDarkMode;
@@ -21,50 +23,68 @@ class MyPageScreen extends StatefulWidget {
 }
 
 class _MyPageScreenState extends State<MyPageScreen> {
-  bool _showAllReviews=false;
-  bool _showAllFavorites=false;
+  bool _showAllReviews = false;
+  bool _showAllFavorites = false;
+
   final _nickController = TextEditingController();
-  String nickname='기존닉네임';
 
-  List<Map<String,dynamic>> _favorites=[];
-  List<Map<String,dynamic>> _myReviews=[];
+  String nickname = '로딩중';
+  bool _canChangeName = true; // 30일 제한
 
-  bool _canChangeName=true; // 30일 제한 남았으면 false
+  List<Map<String,dynamic>> _favorites = [];
+  List<Map<String,dynamic>> _myReviews = [];
+
+  // 찜 목록에 “이미지+제목” 보여주기 위해 summary 캐시
+  Map<int,Bread> _favoriteDetails = {};
 
   @override
   void initState(){
     super.initState();
-    _fetchFav();
-    _fetchMyReviews();
-    // 서버에서 유저정보 받아 닉네임 / lastModifiedAt 확인 → 30일 제한
-    _checkNicknameStatus();
+    _fetchInitialData();
   }
 
-  Future<void> _checkNicknameStatus() async {
+  Future<void> _fetchInitialData() async {
     final uid = AuthService.currentUserId??0;
     if(uid==0) return;
+
+    // 유저 정보
     final info = await UserService.getUserInfo(uid);
     if(info!=null){
-      nickname = info.username;
-      // 예: lastModifiedAt과 오늘 날짜 차이가 30일 미만이면 false
-      // 여기선 더미
-      // _canChangeName = false;
+      setState(()=> nickname = info.username);
     }
-    setState(() {});
+    // 찜 목록
+    final favs = await FavoriteService.getUserFavorites(uid);
+    // 내 리뷰
+    final reviews = await UserService.getUserReviews(uid);
+
+    setState(() {
+      _favorites = favs; // ex) [ {breadId:10, name:'단팥빵'}, ... ]
+      _myReviews = reviews;
+    });
+
+    // “이미지” “디테일”을 위해 breadId마다 BreadService.getBreadDetail or Summary
+    for(final f in favs){
+      final bid = f['breadId'] as int?;
+      if(bid!=null){
+        final summary = await _fetchBreadSummary(bid);
+        if(summary!=null){
+          _favoriteDetails[bid] = summary;
+        }
+      }
+    }
+    setState(()=>{});
   }
 
-  Future<void> _fetchFav() async {
-    final uid = AuthService.currentUserId??0;
-    if(uid==0) return;
-    final list = await FavoriteService.getUserFavorites(uid);
-    setState(()=>_favorites=list);
-  }
-
-  Future<void> _fetchMyReviews() async {
-    final uid = AuthService.currentUserId??0;
-    if(uid==0) return;
-    final list = await UserService.getUserReviews(uid);
-    setState(()=>_myReviews=list);
+  // 간단히 bread_detail 불러오거나 /bread/{id}/summary API가 있다고 가정
+  Future<Bread?> _fetchBreadSummary(int breadId) async {
+    try {
+      // 예: /bread/{breadId}/summary
+      // 여기선 그냥 detail API로...
+      final b = await BreadService.getBreadDetail(breadId);
+      return b;
+    } catch(_){
+      return null;
+    }
   }
 
   void _onLogout(){
@@ -72,8 +92,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
     Navigator.pushNamedAndRemoveUntil(context, '/', (route)=>false);
   }
 
-  void _onSearch(String val){
-    Navigator.pushNamed(context, '/searchResult', arguments: val);
+  void _onSearch(String keyword){
+    Navigator.pushReplacementNamed(context, '/searchResult', arguments: keyword);
   }
 
   @override
@@ -106,23 +126,27 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Widget _buildMyReviewsSection(){
-    // 페이지네이션/정렬(추가 가능). 여기선 더보기 토글
-    final displayedCount = _showAllReviews ? _myReviews.length : (_myReviews.isEmpty? 0 : 1);
+    final displayedCount = _showAllReviews ? _myReviews.length : (_myReviews.isEmpty?0:1);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children:[
         const Text('내가 쓴 리뷰', style: TextStyle(fontSize:18, fontWeight:FontWeight.bold)),
         for(int i=0; i<displayedCount; i++)
           ListTile(
-            title: Text('리뷰${_myReviews[i]['reviewId']}: ${_myReviews[i]['content']} (★${_myReviews[i]['rating']})'),
-            subtitle: Text('breadId=${_myReviews[i]['breadId']} createdAt=${_myReviews[i]['createdAt']}'),
+            title: Text(
+                '리뷰${_myReviews[i]['reviewId']}: ${_myReviews[i]['content']} (★${_myReviews[i]['rating']})'
+            ),
+            subtitle: Text(
+                'breadId=${_myReviews[i]['breadId']} createdAt=${_myReviews[i]['createdAt']}'
+            ),
           ),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children:[
             TextButton(
               onPressed: (){
-                // 정렬 다이얼로그 or 등
+                // 정렬 or 페이지네이션
               },
               child: const Text('정렬'),
             ),
@@ -140,26 +164,55 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   Widget _buildFavoritesSection(){
     final displayed = _showAllFavorites ? _favorites : _favorites.take(3).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children:[
         const Text('찜 목록', style: TextStyle(fontSize:18, fontWeight:FontWeight.bold)),
         SizedBox(
-          height:150,
+          height: 200, // 높이 좀 더
           child: GridView.count(
             crossAxisCount:3,
             children: displayed.map((f){
-              return InkWell(
-                onTap: (){
-                  // 빵 상세로 이동
-                  Navigator.pushNamed(context, '/breadDetail', arguments: f['breadId'] as int);
-                },
-                child: Container(
+              final bid = f['breadId'] as int;
+              final bSummary = _favoriteDetails[bid];
+              if(bSummary==null){
+                // 아직 로딩 안됨
+                return Container(
                   margin: const EdgeInsets.all(4),
                   color: Colors.yellow,
                   child: Center(child: Text('${f['name']}')),
-                ),
-              );
+                );
+              } else {
+                // 이미지+제목
+                return InkWell(
+                  onTap: (){
+                    Navigator.pushReplacementNamed(context, '/breadDetail', arguments:bid);
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color:Colors.brown),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children:[
+                        // 썸네일
+                        if(bSummary.imageUrl!=null)
+                          SizedBox(
+                            height:60, width:60,
+                            child: Image.network(bSummary.imageUrl!, fit:BoxFit.cover),
+                          )
+                        else
+                          const Icon(Icons.bakery_dining, size:40),
+                        const SizedBox(height:4),
+                        Text(bSummary.name, overflow:TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                );
+              }
             }).toList(),
           ),
         ),
@@ -168,7 +221,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
           children:[
             TextButton(
               onPressed: (){
-                setState(()=>_showAllFavorites=!_showAllFavorites);
+                setState(()=>_showAllFavorites = !_showAllFavorites);
               },
               child: Text(_showAllFavorites?'접기':'더보기'),
             )
@@ -188,9 +241,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
             Expanded(
               child: TextField(
                 controller:_nickController,
-                decoration: InputDecoration(
-                  labelText:'닉네임 (현재: $nickname)',
-                ),
+                decoration: InputDecoration(labelText:'닉네임 (현재: $nickname)'),
               ),
             ),
             ElevatedButton(
@@ -210,7 +261,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
       return;
     }
     final confirm = await showDialog<bool>(
-        context:context,
+        context: context,
         builder:(ctx)=> AlertDialog(
           title: const Text('닉네임 변경'),
           content: Text('정말 "$newNick" 으로 변경하시겠습니까?'),
@@ -227,21 +278,19 @@ class _MyPageScreenState extends State<MyPageScreen> {
         return;
       }
       final ok = await UserService.updateUserNickname(uid, newNick);
-      if(!ok){
-        // 서버에서 "중복" or "30일 제한" 등
+      if(ok){
+        setState(()=> nickname=newNick);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('변경 완료')));
+      } else {
+        // 서버: 중복 or 30일 미만
         showDialog(
-            context:context,
+            context: context,
             builder:(_)=> AlertDialog(
               title: const Text('닉네임 변경 실패'),
-              content: const Text('이미 존재하는 닉네임이거나 30일 제한입니다.'),
-              actions:[
-                TextButton(onPressed:()=>Navigator.pop(_), child: const Text('확인'))
-              ],
+              content: const Text('이미 존재하거나 30일 제한.'),
+              actions:[TextButton(onPressed:()=>Navigator.pop(_), child: const Text('확인'))],
             )
         );
-      } else {
-        setState(()=>nickname=newNick);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('변경 완료')));
       }
     }
   }

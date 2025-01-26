@@ -2,16 +2,12 @@
 
 import 'package:flutter/material.dart';
 
-// 실시간 검색 콜백 추가
-typedef SearchChangedCallback = void Function(String);
-
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final bool isHome;
   final ValueChanged<String> onSearchSubmitted;
   final Widget? leading;
   final List<Widget>? actions;
 
-  // 실시간 검색용
   const CustomAppBar({
     Key? key,
     required this.isHome,
@@ -30,11 +26,9 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
 class _CustomAppBarState extends State<CustomAppBar> {
   final TextEditingController _searchCtrl = TextEditingController();
 
-  // 실시간 onChange
-  void _onChange(String val) {
-    // HomeScreen 등에 직접 콜백을 주입받을 수도 있지만,
-    // 구조 단순화 위해, onSubmitted만 사용 or pass new callback...
-    // 여기서는 그냥 do nothing. (실제 홈스크린에서 controller 가져갈 수도)
+  // 필요 시 onChanged를 별도 콜백으로 넘길 수 있음
+  void _onSearchChanged(String val) {
+    // Optional
   }
 
   @override
@@ -45,8 +39,9 @@ class _CustomAppBarState extends State<CustomAppBar> {
       centerTitle: false,
       title: GestureDetector(
         onTap: () {
+          // 홈화면이 아니면 홈으로
           if(!widget.isHome){
-            Navigator.pushNamed(context, '/');
+            Navigator.pushReplacementNamed(context, '/');
           }
         },
         child: const Text(
@@ -68,7 +63,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
               border: OutlineInputBorder(),
               prefixIcon: Icon(Icons.search),
             ),
-            onChanged: _onChange, // 실시간
+            onChanged: _onSearchChanged,
             onSubmitted: widget.onSearchSubmitted,
           ),
         ),

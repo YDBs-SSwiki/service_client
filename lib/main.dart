@@ -1,4 +1,5 @@
 // lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'navigation/navigation_wrapper.dart';
 import 'screens/search_result_screen.dart';
@@ -7,7 +8,7 @@ import 'screens/mypage_screen.dart';
 import 'screens/settings_screen.dart';
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -16,11 +17,12 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   bool _isDarkMode = false;
 
-  void _toggleDarkMode(bool val) {
+  /// 다크 모드 토글함수
+  void _setDarkMode(bool val) {
     setState(() => _isDarkMode = val);
   }
 
-  // 공통 버튼 스타일
+  /// 공통 버튼 스타일
   ButtonStyle get _buttonStyle => ButtonStyle(
     backgroundColor: MaterialStateProperty.all(const Color(0xFFF7EFE6)),
     foregroundColor: MaterialStateProperty.all(const Color(0xFF382E1C)),
@@ -40,9 +42,10 @@ class _MyAppState extends State<MyApp> {
       elevatedButtonTheme: ElevatedButtonThemeData(style: _buttonStyle),
       textButtonTheme: TextButtonThemeData(style: _buttonStyle),
       outlinedButtonTheme: OutlinedButtonThemeData(style: _buttonStyle),
+      hoverColor: const Color(0xFFFFF2E1),
     );
 
-    // 다크 테마(갈색 톤)
+    // 다크 테마
     final themeDark = ThemeData(
       brightness: Brightness.dark,
       primarySwatch: Colors.brown,
@@ -64,6 +67,7 @@ class _MyAppState extends State<MyApp> {
         surface: Color(0xFF4E3A2A),
         onSurface: Color(0xFFF7EFE6),
       ),
+      hoverColor: const Color(0xFF5E4634),
     );
 
     return MaterialApp(
@@ -73,14 +77,14 @@ class _MyAppState extends State<MyApp> {
       routes: {
         '/': (ctx) => NavigationWrapper(
           isDarkMode: _isDarkMode,
-          onToggleDarkMode: _toggleDarkMode,
+          onToggleDarkMode: _setDarkMode,
         ),
         '/searchResult': (ctx) {
           final arg = ModalRoute.of(ctx)?.settings.arguments as String? ?? '';
           return SearchResultScreen(
             keyword: arg,
             isDarkMode: _isDarkMode,
-            onToggleDarkMode: _toggleDarkMode,
+            onToggleDarkMode: _setDarkMode,
           );
         },
         '/breadDetail': (ctx) {
@@ -88,16 +92,16 @@ class _MyAppState extends State<MyApp> {
           return BreadDetailScreen(
             breadId: arg,
             isDarkMode: _isDarkMode,
-            onToggleDarkMode: _toggleDarkMode,
+            onToggleDarkMode: _setDarkMode,
           );
         },
         '/mypage': (ctx) => MyPageScreen(
           isDarkMode: _isDarkMode,
-          onToggleDarkMode: _toggleDarkMode,
+          onToggleDarkMode: _setDarkMode,
         ),
         '/settings': (ctx) => SettingsScreen(
           isDarkMode: _isDarkMode,
-          onToggleDarkMode: _toggleDarkMode,
+          onToggleDarkMode: _setDarkMode,
         ),
       },
     );

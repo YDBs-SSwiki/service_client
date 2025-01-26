@@ -22,27 +22,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _currentScale = 1.0;
 
   void _onSearch(String keyword){
-    Navigator.pushNamed(context, '/searchResult', arguments: keyword);
+    Navigator.pushReplacementNamed(context, '/searchResult', arguments: keyword);
   }
 
   void _pickFontScale() async {
     final val = await showDialog<double>(
         context: context,
-        builder:(ctx){
-          return SimpleDialog(
-            title: const Text('글자 크기'),
-            children: _fontScales.map((scale){
-              return SimpleDialogOption(
-                onPressed: ()=>Navigator.pop(ctx, scale),
-                child: Text('${(scale*100).toInt()}% 크기', style: TextStyle(fontSize:14*scale)),
-              );
-            }).toList(),
-          );
-        }
+        builder:(ctx)=> SimpleDialog(
+          title: const Text('글자 크기'),
+          children: [
+            for(final s in _fontScales)
+              SimpleDialogOption(
+                onPressed: ()=>Navigator.pop(ctx, s),
+                child: Text(
+                  '${(s*100).toInt()}% 크기',
+                  style: TextStyle(fontSize:14*s),
+                ),
+              )
+          ],
+        )
     );
     if(val!=null){
-      setState(()=>_currentScale=val);
-      // 실제로 전체 글씨에 반영하려면 Provider 등...
+      setState(()=>_currentScale = val);
     }
   }
 
@@ -59,29 +60,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children:[
             Row(
               children:[
-                const Text('다크모드:'),
-                Switch(
-                  value: widget.isDarkMode,
-                  onChanged: (val){
-                    widget.onToggleDarkMode(val);
-                  },
-                )
+                const Text('테마: '),
+                ElevatedButton(
+                  onPressed: ()=> widget.onToggleDarkMode(false),
+                  child: const Text('라이트'),
+                ),
+                const SizedBox(width:10),
+                ElevatedButton(
+                  onPressed: ()=> widget.onToggleDarkMode(true),
+                  child: const Text('다크'),
+                ),
               ],
             ),
             const SizedBox(height:16),
             Row(
               children:[
-                const Text('글자 크기 (리스트 선택): '),
+                const Text('글자 크기: '),
                 ElevatedButton(
-                  onPressed:_pickFontScale,
+                  onPressed: _pickFontScale,
                   child: Text('${(_currentScale*100).toInt()}%'),
-                ),
+                )
               ],
             ),
             const SizedBox(height:16),
             Text(
-              '예시 텍스트입니다.\n이 글자 크기가 실시간으로 변하는 것은 예시로.\n(실제 프로젝트에서는 Provider/InheritedWidget 등으로 전체 앱에 반영)',
-              style: TextStyle(fontSize: 14*_currentScale),
+              '예시 텍스트.\n현재 ${(_currentScale*100).toInt()}%.',
+              style: TextStyle(fontSize:14*_currentScale),
             )
           ],
         ),

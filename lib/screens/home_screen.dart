@@ -24,12 +24,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 전체 빵 목록
   List<Bread> _allBreads = [];
-  // 화면에 표시할 빵 목록(정렬/필터 적용)
   List<Bread> _filteredBreads = [];
 
-  String _sortKey = '조회순'; // 조회순 / 최신순 / 리뷰수 / 평점
-  Set<String> _selectedStores = {}; // 대전역점, 은행동점(본점), 스마트시티점
+  String _sortKey = '조회순';
+  Set<String> _selectedStores = {};
   String _searchKeyword = '';
+
+  // 자동완성 목록
+  List<String> _suggestions = [];
 
   @override
   void initState(){
@@ -38,7 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initFetch() async {
-    // 서버에서 빵 목록 가져옴
     await BreadService.fetchAllBreads();
     setState(() {
       _allBreads = BreadService.allBreadsCache;
@@ -47,104 +48,77 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // 실시간 검색 (AppBar의 TextField onChanged)
-  void onSearchTextChanged(String keyword) async {
-    setState(() {
-      _searchKeyword = keyword.trim();
-    });
-    // 만약 빈 문자열이면 검색 목록 비우거나 전체 반환
+  // (1) 검색창 onChanged -> 실시간 자동완성
+  Future<void> onSearchTextChanged(String keyword) async {
+    setState(()=> _searchKeyword = keyword.trim());
     if(_searchKeyword.isEmpty){
-      // 그냥 전체 목록으로
-      setState(() {
-        _filteredBreads = _applySortFilter(_allBreads);
-      });
+      // 전체 목록
+      setState(()=>_filteredBreads = _applySortFilter(_allBreads));
+      _suggestions = [];
       return;
     }
-    // 서버에 실시간 요청 (자동완성) or 로컬 검색
-    // 여기서는 간단히 BreadService.searchBreads(...) 사용
+    // 서버 호출
     final results = await BreadService.searchBreads(_searchKeyword);
-    // 실시간 검색 응답을 다시 정렬/필터에 반영
     setState(() {
       _filteredBreads = _applySortFilter(results);
+      // suggestions: 빵 이름만 표시
+      _suggestions = results.map((e)=> e.name).toList();
     });
   }
 
-  // 정렬/필터 + existing 목록 -> 최종
-  List<Bread> _applySortFilter(List<Bread> list){
-    // 1) 스토어 필터
+  // (2) Enter 시 -> 검색 결과 페이지 이동
+  void _onSearch(String keyword) {
+    // 페이지 1개만 유지 => pushReplacement
+    Navigator.pushReplacementNamed(context, '/searchResult', arguments: keyword);
+  }
+
+  List<Bread> _applySortFilter(List<Bread> list) {
     List<Bread> filtered = [...list];
     if(_selectedStores.isNotEmpty){
       filtered = filtered.where((b){
         if(b.stores==null) return false;
-        // 이 빵이 가진 storeName 중 하나라도 _selectedStores에 있으면 통과
         final storeNames = b.stores!.map((s)=> s.storeName).toSet();
-        // 모든 선택된 지점이 이 빵에 포함돼야 하는지? or 교집합 있으면?
-        // 요구사항 모호 → 교집합(ANY match)라고 가정
         return storeNames.intersection(_selectedStores).isNotEmpty;
       }).toList();
     }
 
-    // 2) 정렬
-    // 실제론 서버 정렬 or local
+    // 간단 정렬
     if(_sortKey=='조회순'){
-      // 가정: breadId가 높을수록 많이 조회된다고 가정(임시)
       filtered.sort((a,b)=> b.breadId.compareTo(a.breadId));
     } else if(_sortKey=='최신순'){
-      // createdAt 기준 or breadId 기준? 임시로 breadId desc
       filtered.sort((a,b)=> b.breadId.compareTo(a.breadId));
     } else if(_sortKey=='리뷰수'){
-      // 여기선 임시(디테일 없음). 그냥 breadId asc
       filtered.sort((a,b)=> a.breadId.compareTo(b.breadId));
     } else if(_sortKey=='평점순'){
-      // 임시. rating이 없음. 그냥 random
-      // or do nothing
+      // no data
     }
-
     return filtered;
   }
 
-  void _onSearch(String keyword){
-    // Enter 시 검색 결과 페이지 이동
-    Navigator.pushNamed(context, '/searchResult', arguments: keyword);
-  }
-
-  // 정렬 선택
   void _pickSort() async {
     final val = await showDialog<String>(
         context: context,
         builder:(ctx)=> SimpleDialog(
           title: const Text('정렬 기준'),
-          children: [
-            SimpleDialogOption(
-              child: const Text('조회순'),
-              onPressed: ()=>Navigator.pop(ctx,'조회순'),
-            ),
-            SimpleDialogOption(
-              child: const Text('최신순'),
-              onPressed: ()=>Navigator.pop(ctx,'최신순'),
-            ),
-            SimpleDialogOption(
-              child: const Text('리뷰수'),
-              onPressed: ()=>Navigator.pop(ctx,'리뷰수'),
-            ),
-            SimpleDialogOption(
-              child: const Text('평점순'),
-              onPressed: ()=>Navigator.pop(ctx,'평점순'),
-            ),
+          children:[
+            SimpleDialogOption(child: const Text('조회순'), onPressed: ()=>Navigator.pop(ctx,'조회순')),
+            SimpleDialogOption(child: const Text('최신순'), onPressed: ()=>Navigator.pop(ctx,'최신순')),
+            SimpleDialogOption(child: const Text('리뷰수'), onPressed: ()=>Navigator.pop(ctx,'리뷰수')),
+            SimpleDialogOption(child: const Text('평점순'), onPressed: ()=>Navigator.pop(ctx,'평점순')),
           ],
         )
     );
     if(val!=null){
       setState(()=> _sortKey=val);
-      _filteredBreads = _applySortFilter((_searchKeyword.isEmpty)
+      final results = _searchKeyword.isEmpty
           ? _allBreads
-          : await BreadService.searchBreads(_searchKeyword));
+          : await BreadService.searchBreads(_searchKeyword);
+      _filteredBreads = _applySortFilter(results);
     }
   }
 
-  // 스토어 필터
   void _pickStoreFilter() async {
-    final result = await showDialog<Set<String>>(
+    final chosen = await showDialog<Set<String>>(
         context: context,
         builder:(ctx){
           Set<String> temp = {..._selectedStores};
@@ -154,66 +128,58 @@ class _HomeScreenState extends State<HomeScreen> {
               builder:(context,setStateDialog){
                 return Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildStoreCheckbox('대전역점', temp, setStateDialog),
-                    _buildStoreCheckbox('은행동점(본점)', temp, setStateDialog),
-                    _buildStoreCheckbox('스마트시티점', temp, setStateDialog),
+                  children:[
+                    _storeCheckbox('대전역점', temp, setStateDialog),
+                    _storeCheckbox('은행동점(본점)', temp, setStateDialog),
+                    _storeCheckbox('스마트시티점', temp, setStateDialog),
                   ],
                 );
               },
             ),
-            actions: [
-              TextButton(
-                onPressed: ()=>Navigator.pop(ctx,null),
-                child: const Text('취소'),
-              ),
-              ElevatedButton(
-                onPressed: ()=>Navigator.pop(ctx,temp),
-                child: const Text('확인'),
-              )
+            actions:[
+              TextButton(onPressed:()=>Navigator.pop(ctx,null), child: const Text('취소')),
+              ElevatedButton(onPressed:()=>Navigator.pop(ctx,temp), child: const Text('확인')),
             ],
           );
         }
     );
-    if(result!=null){
-      setState(()=>_selectedStores=result);
-      _filteredBreads = _applySortFilter((_searchKeyword.isEmpty)
+    if(chosen!=null){
+      setState(()=> _selectedStores=chosen);
+      final results = _searchKeyword.isEmpty
           ? _allBreads
-          : await BreadService.searchBreads(_searchKeyword));
+          : await BreadService.searchBreads(_searchKeyword);
+      _filteredBreads = _applySortFilter(results);
     }
   }
 
-  Widget _buildStoreCheckbox(String storeName, Set<String> temp, void Function(void Function()) setStateDialog){
-    final isSelected = temp.contains(storeName);
+  Widget _storeCheckbox(String name, Set<String> temp, void Function(void Function()) setStateDialog){
+    final isChecked = temp.contains(name);
     return CheckboxListTile(
-        title: Text(storeName),
-        value: isSelected,
-        onChanged: (val){
-          setStateDialog((){
-            if(val==true){
-              temp.add(storeName);
-            } else {
-              temp.remove(storeName);
-            }
-          });
-        }
+      title: Text(name),
+      value: isChecked,
+      onChanged:(v){
+        setStateDialog(() {
+          if(v==true) temp.add(name); else temp.remove(name);
+        });
+      },
     );
   }
 
   @override
   Widget build(BuildContext context){
     return Scaffold(
-      // AppBar: 검색창의 onChanged를 실시간 호출하기 위해 CustomAppBar 수정
+      // CustomAppBar에서 onChanged -> onSearchTextChanged 연결
       appBar: CustomAppBar(
         isHome:true,
-        onSearchSubmitted: _onSearch,
-        // leading, actions 필요 없으므로 생략
-        // 실시간 검색은 custom_appbar.dart를 수정해서 onChanged 지원 (아래에서 수정)
+        onSearchSubmitted:_onSearch,
+        leading: null,
+        actions: const [],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
-        children: [
+        children:[
+          // 정렬/필터
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children:[
@@ -227,6 +193,31 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+
+          // (자동완성) _suggestions
+          if(_suggestions.isNotEmpty)
+            Container(
+              color: Colors.orange[50],
+              height:100,
+              child: ListView.builder(
+                itemCount: _suggestions.length,
+                itemBuilder:(ctx,i){
+                  final s = _suggestions[i];
+                  return InkWell(
+                    onTap: (){
+                      // 해당 suggestion으로 검색
+                      _onSearch(s);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical:6, horizontal:10),
+                      child: Text(s, style: const TextStyle(color:Colors.blue)),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+          // 그리드
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.all(8),
@@ -240,10 +231,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 final b = _filteredBreads[i];
                 return InkWell(
                   onTap: (){
-                    Navigator.pushNamed(context, '/breadDetail', arguments:b.breadId);
+                    // 단일 페이지 => pushReplacement
+                    Navigator.pushReplacementNamed(context, '/breadDetail', arguments:b.breadId);
                   },
                   child: Column(
-                    children: [
+                    children:[
                       Expanded(
                         child: Container(
                           color: Colors.grey[300],

@@ -2,6 +2,10 @@
 
 import 'package:flutter/material.dart';
 
+/// 하단 NavBar:
+/// - 로그인 전: [홈, 로그인, 설정]
+/// - 로그인 후: [홈, 마이페이지, 설정]
+/// - 현재 탭 강조, 비로그인 시 마이페이지 클릭->로그인 팝업
 class CustomNavBar extends StatelessWidget {
   final int currentIndex;
   final bool isLoggedIn;

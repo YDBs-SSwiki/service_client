@@ -2,9 +2,11 @@
 
 import 'package:flutter/material.dart';
 import '../../../services/bread_service.dart';
-import '../../../models/bread.dart';
 import '../../../services/auth_service.dart';
+import '../../../models/bread.dart';
 
+/// 빵 문서 편집 팝업
+/// - addBread 로직 재활용 -> 이미 존재하는 breadId면 update
 class EditBreadPopup extends StatefulWidget {
   final Bread bread;
 
@@ -19,20 +21,18 @@ class _EditBreadPopupState extends State<EditBreadPopup> {
   late TextEditingController _detailCtrl;
   late TextEditingController _priceCtrl;
   late TextEditingController _countCtrl;
-  // 스토어 체크
-  Set<int> _selectedStoreIds = {};
-
-  String? _imagePath; // 새 이미지
+  Set<int> _selectedStores = {};
+  String? _imagePath;
 
   @override
   void initState(){
     super.initState();
     _nameCtrl = TextEditingController(text: widget.bread.name);
-    _detailCtrl = TextEditingController(text: widget.bread.detail ?? '');
-    _priceCtrl = TextEditingController(text: widget.bread.price?.toString() ?? '0');
-    _countCtrl = TextEditingController(text: widget.bread.count?.toString() ?? '0');
+    _detailCtrl = TextEditingController(text: widget.bread.detail??'');
+    _priceCtrl = TextEditingController(text: '${widget.bread.price??0}');
+    _countCtrl = TextEditingController(text: '${widget.bread.count??0}');
     if(widget.bread.stores!=null){
-      _selectedStoreIds = widget.bread.stores!.map((s)=>s.storeId).toSet();
+      _selectedStores = widget.bread.stores!.map((s)=> s.storeId).toSet();
     }
   }
 
@@ -47,16 +47,15 @@ class _EditBreadPopupState extends State<EditBreadPopup> {
 
   void _pickImage() async {
     // TODO: file picker
-    // e.g. _imagePath = result.files.single.path
-    // For now, do dummy
-    setState(()=>_imagePath='C:/dummy/test.jpg');
+    // e.g. result = await FilePicker...
+    setState(()=> _imagePath = null); // test
   }
 
   void _pickStores() async {
     final chosen = await showDialog<Set<int>>(
         context: context,
         builder:(ctx){
-          Set<int> temp = {..._selectedStoreIds};
+          final tmp = {..._selectedStores};
           return AlertDialog(
             title: const Text('판매 지점 선택'),
             content: StatefulBuilder(
@@ -64,61 +63,60 @@ class _EditBreadPopupState extends State<EditBreadPopup> {
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children:[
-                    _storeCheckbox(1,'대전역점',temp,setStateDialog),
-                    _storeCheckbox(2,'은행동점(본점)',temp,setStateDialog),
-                    _storeCheckbox(3,'스마트시티점',temp,setStateDialog),
+                    _storeCheckbox(1,'대전역점',tmp,setStateDialog),
+                    _storeCheckbox(2,'은행동점(본점)',tmp,setStateDialog),
+                    _storeCheckbox(3,'스마트시티점',tmp,setStateDialog),
                   ],
                 );
               },
             ),
             actions:[
               TextButton(onPressed:()=>Navigator.pop(ctx,null), child: const Text('취소')),
-              ElevatedButton(onPressed:()=>Navigator.pop(ctx,temp), child: const Text('확인')),
+              ElevatedButton(onPressed:()=>Navigator.pop(ctx,tmp), child: const Text('확인')),
             ],
           );
         }
     );
     if(chosen!=null){
-      setState(()=>_selectedStoreIds=chosen);
+      setState(()=> _selectedStores=chosen);
     }
   }
 
-  Widget _storeCheckbox(int sid, String name, Set<int> temp, void Function(void Function()) setStateDialog){
-    final isChecked = temp.contains(sid);
+  Widget _storeCheckbox(int sid, String name, Set<int> tmp, void Function(void Function()) setStateDialog){
+    final isChecked = tmp.contains(sid);
     return CheckboxListTile(
-        title: Text(name),
-        value: isChecked,
-        onChanged:(val){
-          setStateDialog((){
-            if(val==true) temp.add(sid);
-            else temp.remove(sid);
-          });
-        }
+      title: Text(name),
+      value: isChecked,
+      onChanged:(val){
+        setStateDialog((){
+          if(val==true) tmp.add(sid);
+          else tmp.remove(sid);
+        });
+      },
     );
   }
 
   Future<void> _onSubmit() async {
     final uid = AuthService.currentUserId??0;
     if(uid==0){
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('로그인 필요')));
       Navigator.pop(context,false);
       return;
     }
-    final ok = await BreadService.updateBread(
+    final ok = await BreadService.updateBreadViaAddBread(
       breadId: widget.bread.breadId,
       name: _nameCtrl.text.trim(),
       detail: _detailCtrl.text.trim(),
       price: int.tryParse(_priceCtrl.text.trim())??0,
       count: int.tryParse(_countCtrl.text.trim())??0,
-      imageFilePath: _imagePath, // null이면 변경없음
-      storeIds: _selectedStoreIds.toList(),
+      imageFilePath: _imagePath, // null => unchanged
+      storeIds: _selectedStores.toList(),
     );
-    if(!ok){
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('편집 실패')));
-      Navigator.pop(context,false);
-    } else {
+    if(ok){
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('편집 완료')));
       Navigator.pop(context,true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('편집 실패')));
+      Navigator.pop(context,false);
     }
   }
 
@@ -162,7 +160,7 @@ class _EditBreadPopupState extends State<EditBreadPopup> {
             const SizedBox(height:8),
             ElevatedButton(
               onPressed:_pickStores,
-              child: Text('판매 지점 선택: ${_selectedStoreIds.join(", ")}'),
+              child: Text('판매 지점 선택: ${_selectedStores.join(", ")}'),
             ),
             const SizedBox(height:16),
             Row(
