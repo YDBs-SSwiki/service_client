@@ -6,6 +6,7 @@ import 'screens/search_result_screen.dart';
 import 'screens/bread_detail_screen.dart';
 import 'screens/mypage_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/api_client.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -17,20 +18,19 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   bool _isDarkMode = false;
 
-  /// 다크 모드 토글함수
   void _setDarkMode(bool val) {
     setState(() => _isDarkMode = val);
   }
 
-  /// 공통 버튼 스타일
-  ButtonStyle get _buttonStyle => ButtonStyle(
-    backgroundColor: MaterialStateProperty.all(const Color(0xFFF7EFE6)),
-    foregroundColor: MaterialStateProperty.all(const Color(0xFF382E1C)),
-  );
+  @override
+  void initState() {
+    super.initState();
+    // 1) 앱 시작 시 1회, Dio 인터셉터 초기화
+    ApiClient.initInterceptors();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // 라이트 테마
     final themeLight = ThemeData(
       brightness: Brightness.light,
       primarySwatch: Colors.brown,
@@ -39,13 +39,7 @@ class _MyAppState extends State<MyApp> {
         backgroundColor: Color(0xFFB57A45),
         foregroundColor: Color(0xFFF7EFE6),
       ),
-      elevatedButtonTheme: ElevatedButtonThemeData(style: _buttonStyle),
-      textButtonTheme: TextButtonThemeData(style: _buttonStyle),
-      outlinedButtonTheme: OutlinedButtonThemeData(style: _buttonStyle),
-      hoverColor: const Color(0xFFFFF2E1),
     );
-
-    // 다크 테마
     final themeDark = ThemeData(
       brightness: Brightness.dark,
       primarySwatch: Colors.brown,
@@ -54,20 +48,6 @@ class _MyAppState extends State<MyApp> {
         backgroundColor: Color(0xFF382E1C),
         foregroundColor: Color(0xFFF7EFE6),
       ),
-      elevatedButtonTheme: ElevatedButtonThemeData(style: _buttonStyle),
-      textButtonTheme: TextButtonThemeData(style: _buttonStyle),
-      outlinedButtonTheme: OutlinedButtonThemeData(style: _buttonStyle),
-      colorScheme: const ColorScheme.dark(
-        primary: Color(0xFFB57A45),
-        onPrimary: Color(0xFFF7EFE6),
-        secondary: Color(0xFF382E1C),
-        onSecondary: Color(0xFFF7EFE6),
-        background: Color(0xFF4E3A2A),
-        onBackground: Color(0xFFF7EFE6),
-        surface: Color(0xFF4E3A2A),
-        onSurface: Color(0xFFF7EFE6),
-      ),
-      hoverColor: const Color(0xFF5E4634),
     );
 
     return MaterialApp(

@@ -6,9 +6,10 @@ class Review {
   final int userId;
   final int rating;
   final String content;
-  final int? likes;   // 좋아요 수
-  final bool? liked;  // 사용자가 좋아요 눌렀는지 여부
+  final int? likes;    // 좋아요 수
+  final bool? liked;   // 내가 좋아요 눌렀는지 여부 (서버 응답)
   final String? createdAt;
+  final String? imageUrl;  // ← 추가: 리뷰 이미지 URL
 
   Review({
     required this.reviewId,
@@ -19,6 +20,7 @@ class Review {
     this.likes,
     this.liked,
     this.createdAt,
+    this.imageUrl,
   });
 
   factory Review.fromJson(Map<String, dynamic> j) {
@@ -31,6 +33,7 @@ class Review {
       likes: j['likes'],
       liked: j['liked'],
       createdAt: j['createdAt'],
+      imageUrl: j['imageUrl'], // ← 서버 응답에 imageUrl 있으면 파싱
     );
   }
 }

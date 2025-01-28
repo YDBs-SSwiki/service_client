@@ -1,5 +1,3 @@
-// lib/screens/bread_detail_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
@@ -13,6 +11,7 @@ import '../models/review.dart';
 
 import '../widgets/common/custom_appbar.dart';
 import '../widgets/popups/edit_bread_popup.dart';
+import '../widgets/popups/review_popup.dart';
 
 class BreadDetailScreen extends StatefulWidget {
   final int breadId;
@@ -32,27 +31,19 @@ class BreadDetailScreen extends StatefulWidget {
 
 class _BreadDetailScreenState extends State<BreadDetailScreen> {
   Bread? _bread;
-
-  /// 빵 리뷰 목록
   List<Review> _reviews = [];
-
-  /// 현재 로그인 사용자의 “이 빵에 대한 리뷰” (있으면 수정/삭제 가능)
   Review? _myReview;
-
   bool _loading = true;
+  bool _isFavorited = false;
 
-  // 검색 및 자동완성
   String _searchKeyword = '';
   List<Bread> _suggestionBreads = [];
-
-  // 찜 상태
-  bool _isFavorited = false;
 
   // 리뷰 정렬/필터
   String _reviewSort = '추천순';
   int? _filterRating;
 
-  // Markdown 목차 파싱
+  // Markdown 목차
   final ScrollController _scrollCtrl = ScrollController();
   List<String> _headings = [];
 
@@ -64,16 +55,16 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
     _loadData();
   }
 
-  /// 데이터 로드: 빵 상세 + 리뷰 + 내 찜 목록 확인
   Future<void> _loadData() async {
     setState(() => _loading = true);
 
-    // 1) 빵 상세
+    // 빵 상세
     final b = await BreadService.getBreadDetail(widget.breadId);
-    // 2) 리뷰 목록
+
+    // 리뷰 목록
     final r = await ReviewService.getBreadReviews(widget.breadId);
 
-    // 3) 내 찜 여부
+    // 찜 여부
     bool fav = false;
     if (isLoggedIn) {
       final uid = AuthService.currentUserId ?? 0;
@@ -81,17 +72,14 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
       fav = favList.any((f) => f['breadId'] == widget.breadId);
     }
 
-    // 4) 내 리뷰 (이미 작성했는지 확인)
+    // 내 리뷰 찾기
     Review? mine;
     if (isLoggedIn) {
       final uid = AuthService.currentUserId ?? 0;
       final found = r.where((rv) => rv.userId == uid).toList();
-      if (found.isNotEmpty) {
-        mine = found.first;
-      }
+      if (found.isNotEmpty) mine = found.first;
     }
 
-    // UI 반영
     setState(() {
       _bread = b;
       _reviews = r;
@@ -100,7 +88,6 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
       _loading = false;
     });
 
-    // 목차(마크다운 heading) 파싱
     _parseHeadings(b?.detail);
   }
 
@@ -120,8 +107,7 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
     }
   }
 
-  // -------------------------------
-  // (1) 실시간 입력 -> 자동완성
+  // ────────────────────────── 검색/자동완성 ──────────────────────────
   Future<void> _onSearchTextChanged(String keyword) async {
     setState(() => _searchKeyword = keyword.trim());
     if (_searchKeyword.isEmpty) {
@@ -132,26 +118,23 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
     setState(() => _suggestionBreads = results);
   }
 
-  // (2) 엔터 -> 검색 결과 페이지로 이동
   void _onSearch(String keyword) {
     Navigator.pushReplacementNamed(context, '/searchResult', arguments: keyword);
   }
-  // -------------------------------
 
-  /// 찜 토글 (이미 찜이면 해제, 아니면 등록)
+  // ────────────────────────── 찜 토글 ──────────────────────────
   Future<void> _toggleFavorite() async {
     if (!isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('로그인 필요')));
       return;
     }
     final uid = AuthService.currentUserId ?? 0;
-
     if (_isFavorited) {
       // 해제
       final ok = await FavoriteService.unsetFavorite(userId: uid, breadId: widget.breadId);
       if (ok) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('찜 해제 완료')));
         setState(() => _isFavorited = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('찜 해제 완료')));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('찜 해제 실패')));
       }
@@ -159,15 +142,15 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
       // 등록
       final ok = await FavoriteService.setFavorite(userId: uid, breadId: widget.breadId);
       if (ok) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('찜 완료')));
         setState(() => _isFavorited = true);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('찜 완료')));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('찜 실패')));
       }
     }
   }
 
-  /// 문서 수정 팝업 => 성공시 다시 load
+  // ────────────────────────── 빵 문서 수정 ──────────────────────────
   Future<void> _editDoc() async {
     if (!isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('로그인 필요')));
@@ -180,73 +163,115 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
       builder: (_) => EditBreadPopup(bread: _bread!),
     );
     if (result == true) {
+      await _loadData(); // 수정 후 다시 로딩
+    }
+  }
+
+  // ────────────────────────── 리뷰 작성/수정 ──────────────────────────
+  Future<void> _openReviewPopup() async {
+    if (!isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('로그인 필요')));
+      return;
+    }
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ReviewPopup(
+        breadId: widget.breadId,
+        existingReview: _myReview,
+      ),
+    );
+    if (result == true) {
+      // 작성/수정 성공 -> 다시 로딩
       await _loadData();
     }
   }
 
-  /// -------------------------------
-  /// 리뷰 작성/수정 버튼 (create/update)
-  Future<void> _writeOrUpdateReview() async {
+  // ────────────────────────── 리뷰 삭제 ──────────────────────────
+  Future<void> _deleteReview(Review rv) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('리뷰 삭제'),
+        content: const Text('정말 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      final ok = await ReviewService.deleteReview(rv.reviewId);
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('리뷰 삭제 완료')));
+        await _loadData();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('리뷰 삭제 실패')));
+      }
+    }
+  }
+
+  // ────────────────────────── 좋아요 토글 ──────────────────────────
+  Future<void> _toggleReviewLike(Review rv) async {
     if (!isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('로그인 필요')));
       return;
     }
     final uid = AuthService.currentUserId ?? 0;
+    final doLike = !(rv.liked ?? false);
 
-    if (_myReview == null) {
-      // 아직 리뷰 없음 => create
-      final newReview = await ReviewService.createReview(
-        breadId: widget.breadId,
-        userId: uid,
-        rating: 5, // 예시
-        content: '새 리뷰 내용...',
-      );
-      if (newReview != null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('리뷰 작성 완료')));
-        await _loadData();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('리뷰 작성 실패')));
-      }
+    final result = await ReviewService.toggleReviewLike(
+      reviewId: rv.reviewId,
+      userId: uid,
+      doLike: doLike,
+    );
+    if (result != null) {
+      final updatedLiked = result['liked'] as bool?;
+      final updatedLikes = result['totalLikes'] as int?;
+      setState(() {
+        for (int i = 0; i < _reviews.length; i++) {
+          if (_reviews[i].reviewId == rv.reviewId) {
+            _reviews[i] = Review(
+              reviewId: rv.reviewId,
+              breadId: rv.breadId,
+              userId: rv.userId,
+              rating: rv.rating,
+              content: rv.content,
+              createdAt: rv.createdAt,
+              likes: updatedLikes,
+              liked: updatedLiked,
+              imageUrl: rv.imageUrl,
+            );
+            break;
+          }
+        }
+      });
     } else {
-      // 이미 리뷰 존재 => update
-      final updated = await ReviewService.updateReview(
-        reviewId: _myReview!.reviewId,
-        breadId: widget.breadId,
-        userId: uid,
-        rating: _myReview!.rating,
-        content: '수정된 내용...',
-      );
-      if (updated != null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('리뷰 수정 완료')));
-        await _loadData();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('리뷰 수정 실패')));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('좋아요 처리 실패')));
     }
   }
 
-  /// 리뷰 삭제
-  Future<void> _deleteReview(Review rv) async {
-    final ok = await ReviewService.deleteReview(rv.reviewId);
-    if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('리뷰 삭제 완료')));
-      await _loadData();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('리뷰 삭제 실패')));
-    }
-  }
-
-  /// -------------------------------
-
-  /// 리뷰 정렬/필터
+  // ────────────────────────── 리뷰 정렬/필터 ──────────────────────────
   void _pickReviewSort() async {
     final val = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: const Text('리뷰 정렬'),
         children: [
-          SimpleDialogOption(child: const Text('추천순'), onPressed: () => Navigator.pop(ctx, '추천순')),
-          SimpleDialogOption(child: const Text('최신순'), onPressed: () => Navigator.pop(ctx, '최신순')),
+          SimpleDialogOption(
+            child: const Text('추천순'),
+            onPressed: () => Navigator.pop(ctx, '추천순'),
+          ),
+          SimpleDialogOption(
+            child: const Text('최신순'),
+            onPressed: () => Navigator.pop(ctx, '최신순'),
+          ),
         ],
       ),
     );
@@ -287,6 +312,7 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
     setState(() => _reviews = list);
   }
 
+  // ────────────────────────── UI build ──────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -303,11 +329,22 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 자동완성
             if (_searchKeyword.isNotEmpty) _buildSuggestions(),
-
-            // 상단: 찜/수정 버튼
-            _buildTopButtons(),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _toggleFavorite,
+                  icon: Icon(_isFavorited ? Icons.favorite : Icons.favorite_border),
+                  label: const Text('찜'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton.icon(
+                  onPressed: _editDoc,
+                  icon: const Icon(Icons.edit),
+                  label: const Text('수정'),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             if (_bread != null) _buildBreadInfo(_bread!),
             const Divider(),
@@ -320,7 +357,6 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
     );
   }
 
-  /// 자동완성 위젯
   Widget _buildSuggestions() {
     if (_suggestionBreads.isEmpty) {
       return Container(
@@ -338,7 +374,6 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
           final bread = _suggestionBreads[i];
           return InkWell(
             onTap: () {
-              // 자동완성 클릭 시 곧바로 해당 빵 상세로
               Navigator.pushReplacementNamed(context, '/breadDetail', arguments: bread.breadId);
             },
             child: Padding(
@@ -351,44 +386,21 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
     );
   }
 
-  /// 최상단 버튼 Row
-  Widget _buildTopButtons() {
-    return Row(
-      children: [
-        ElevatedButton.icon(
-          onPressed: _toggleFavorite,
-          icon: Icon(_isFavorited ? Icons.favorite : Icons.favorite_border),
-          label: const Text('찜'),
-        ),
-        const SizedBox(width: 10),
-        ElevatedButton.icon(
-          onPressed: _editDoc,
-          icon: const Icon(Icons.edit),
-          label: const Text('수정'),
-        )
-      ],
-    );
-  }
-
   Widget _buildBreadInfo(Bread b) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 사진 크기 제한
         if (b.imageUrl != null)
           SizedBox(
             height: 200,
-            child: Image.network(
-              b.imageUrl!,
-              fit: BoxFit.contain,
-            ),
+            child: Image.network(b.imageUrl!, fit: BoxFit.contain),
           ),
         const SizedBox(height: 8),
         Text('${b.name}  ${b.price}원', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
         Text('재고: ${b.count ?? 0}'),
         if (b.stores != null && b.stores!.isNotEmpty)
-          Text('판매 지점: ${b.stores!.map((e) => e.storeName).join(", ")}'),
+          Text('판매 지점: ${b.stores!.map((s) => s.storeName).join(", ")}'),
         const SizedBox(height: 8),
         Text('생성: ${b.createdAt ?? "-"} / 수정: ${b.updatedAt ?? "-"}'),
         const SizedBox(height: 16),
@@ -400,19 +412,14 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
   Widget _buildMarkdown(String md) {
     return ExpansionPanelList(
       expansionCallback: (panelIndex, isExpanded) {
-        setState(() {
-          // 필요 시 확장/축소 관리
-        });
+        setState(() {});
       },
       children: [
         ExpansionPanel(
           headerBuilder: (_, __) => const ListTile(title: Text('문서 내용(마크다운)')),
           body: SizedBox(
             height: 300,
-            child: Markdown(
-              data: md,
-              selectable: true,
-            ),
+            child: Markdown(data: md, selectable: true),
           ),
           isExpanded: true,
         )
@@ -421,7 +428,9 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
   }
 
   Widget _buildTOC() {
-    if (_headings.isEmpty) return const SizedBox();
+    if (_headings.isEmpty) {
+      return const SizedBox();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -429,12 +438,7 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
         for (final h in _headings)
           InkWell(
             onTap: () {
-              // 단순히 맨 위로 스크롤
-              _scrollCtrl.animateTo(
-                0,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
+              _scrollCtrl.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
             },
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -445,12 +449,14 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
     );
   }
 
-  /// 리뷰 영역
+  /// 좋아요 버튼 & 좋아요 수가 함께 보이도록 수정
   Widget _buildReviewSection() {
     final myId = AuthService.currentUserId ?? 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 상단
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -466,7 +472,7 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
                   child: Text('별점: ${_filterRating ?? "전체"}'),
                 ),
                 ElevatedButton(
-                  onPressed: _writeOrUpdateReview,
+                  onPressed: _openReviewPopup,
                   child: Text(_myReview == null ? '작성' : '수정'),
                 ),
               ],
@@ -475,19 +481,41 @@ class _BreadDetailScreenState extends State<BreadDetailScreen> {
         ),
         const SizedBox(height: 8),
 
-        // 리뷰 목록
+        // 리뷰 카드 목록
         for (final rv in _reviews)
           Card(
             child: ListTile(
-              leading: Text('👍${rv.likes ?? 0}'),
               title: Text('[${rv.rating}★] ${rv.content}'),
-              subtitle: Text('작성자: ${rv.userId} / ${rv.createdAt ?? ""}'),
-              trailing: (rv.userId == myId)
-                  ? IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: () => _deleteReview(rv),
-              )
-                  : null,
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('작성자: ${rv.userId} / ${rv.createdAt ?? ""}'),
+                  if (rv.imageUrl != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Image.network(rv.imageUrl!, height: 80, fit: BoxFit.cover),
+                    ),
+                ],
+              ),
+              // 오른쪽에 "따봉 아이콘 + 좋아요 수" / "삭제 버튼(내 리뷰인 경우)"
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 좋아요 버튼
+                  IconButton(
+                    icon: Icon((rv.liked ?? false) ? Icons.thumb_up : Icons.thumb_up_outlined),
+                    onPressed: () => _toggleReviewLike(rv),
+                  ),
+                  // 좋아요 수
+                  Text('${rv.likes ?? 0}'),
+                  // 내 리뷰면 삭제
+                  if (rv.userId == myId)
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.grey),
+                      onPressed: () => _deleteReview(rv),
+                    ),
+                ],
+              ),
             ),
           )
       ],

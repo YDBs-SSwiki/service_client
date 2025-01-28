@@ -1,111 +1,147 @@
 // lib/services/review_service.dart
 
 import 'dart:developer';
+import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 import '../models/review.dart';
 import 'api_client.dart';
 
 class ReviewService {
-  /// GET /bread/{breadId}/reviews
-  /// 서버 응답 예:
-  /// {
-  ///   "breadId": 10,
-  ///   "reviews": [
-  ///     {
-  ///       "reviewId":101,
-  ///       "userId":50,
-  ///       "rating":5,
-  ///       "content":"정말 맛있어요!",
-  ///       "likes":10,
-  ///       "createdAt":"2025-01-05T11:30:00"
-  ///     }, ...
-  ///   ]
-  /// }
   static Future<List<Review>> getBreadReviews(int breadId) async {
     try {
       final res = await ApiClient.dio.get('/bread/$breadId/reviews');
       final data = res.data as Map<String, dynamic>;
-
       final arr = data['reviews'] as List<dynamic>;
-      // Review 모델로 변환
-      final list = arr.map((e) => Review.fromJson(e as Map<String, dynamic>)).toList();
-      return list;
+      return arr.map((e) => Review.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
       log('getBreadReviews error: $e');
       return [];
     }
   }
 
-  /// POST /reviews (새 리뷰 작성)
-  /// RequestParam:
-  ///   - breadId, userId, rating, content, (image?) ...
-  /// 서버가 JSON body가 아닌 FormData나 RequestParam 방식을 요구한다면 주의 필요.
-  static Future<Review?> createReview({
-    required int breadId,
+  static Future<Map<String, dynamic>?> toggleReviewLike({
+    required int reviewId,
     required int userId,
-    required int rating,
-    required String content,
+    required bool doLike,
   }) async {
     try {
-      // 일단 JSON body로 보낸다고 가정 (만약 서버가 RequestParam이라면 queryParameters로 보낼 수도 있음)
-      final body = {
-        "breadId": breadId,
-        "userId": userId,
-        "rating": rating,
-        "content": content,
-      };
+      final body = {"userId": userId, "like": doLike};
+      final res = await ApiClient.dio.post('/reviews/$reviewId/likes', data: body);
 
-      final res = await ApiClient.dio.post('/reviews', data: body);
-      if (res.statusCode == 200) {
-        final json = res.data as Map<String, dynamic>;
-        return Review.fromJson(json);
+      final code = res.statusCode ?? 0;
+      if (code >= 200 && code < 300) {
+        // 2xx 범위면 성공
+        return res.data as Map<String, dynamic>;
       }
+
+      log('toggleReviewLike: status=$code, data=${res.data}');
       return null;
     } catch (e) {
-      log('createReview error: $e');
+      log('toggleReviewLike error: $e');
       return null;
     }
   }
 
-  /// POST /reviews/{reviewId}/update (기존 리뷰 수정)
-  /// Body(JSON):
-  /// {
-  ///   "breadId": 1,
-  ///   "userId": 2,
-  ///   "rating": 5,
-  ///   "content": "맛있고 바삭해요!"
-  /// }
-  static Future<Review?> updateReview({
+  /// 리뷰 작성 (createReview)
+  static Future<Review?> createReviewWithImage({
+    required int breadId,
+    required int userId,
+    required int rating,
+    required String content,
+    String? title,
+    MultipartFile? imageFile,
+  }) async {
+    try {
+      final formData = FormData();
+      formData.fields.add(MapEntry('breadId', breadId.toString()));
+      formData.fields.add(MapEntry('userId', userId.toString()));
+      formData.fields.add(MapEntry('rating', rating.toString()));
+      formData.fields.add(MapEntry('content', content));
+      if (title != null) {
+        formData.fields.add(MapEntry('title', title));
+      }
+      if (imageFile != null) {
+        formData.files.add(MapEntry('image', imageFile));
+      }
+
+      final res = await ApiClient.dio.post('/reviews/createReview', data: formData);
+      final code = res.statusCode ?? 0;
+      if (code >= 200 && code < 300) {
+        // 2xx 범위면 성공
+        return Review.fromJson(res.data as Map<String, dynamic>);
+      }
+
+      log('createReviewWithImage fail: status=$code, data=${res.data}');
+      return null;
+    } catch (e) {
+      log('createReviewWithImage error: $e');
+      return null;
+    }
+  }
+
+  /// 리뷰 수정 (updateReview)
+  static Future<Review?> updateReviewWithImage({
     required int reviewId,
     required int breadId,
     required int userId,
     required int rating,
     required String content,
+    String? title,
+    MultipartFile? imageFile,
   }) async {
     try {
-      final body = {
+      final reviewMap = {
         "breadId": breadId,
         "userId": userId,
         "rating": rating,
         "content": content,
       };
-      final res = await ApiClient.dio.post('/reviews/$reviewId/update', data: body);
-      if (res.statusCode == 200) {
-        final json = res.data as Map<String, dynamic>;
-        return Review.fromJson(json);
+      if (title != null) {
+        reviewMap["title"] = title;
       }
+
+      final reviewJson = jsonEncode(reviewMap);
+      final formData = FormData();
+      formData.files.add(MapEntry(
+        'review',
+        MultipartFile.fromString(
+          reviewJson,
+          filename: 'review.json',
+          contentType: MediaType('application', 'json'),
+        ),
+      ));
+      if (imageFile != null) {
+        formData.files.add(MapEntry('imageFile', imageFile));
+      }
+
+      final res = await ApiClient.dio.post('/reviews/$reviewId/update', data: formData);
+      final code = res.statusCode ?? 0;
+      if (code >= 200 && code < 300) {
+        // 2xx 범위면 성공
+        return Review.fromJson(res.data as Map<String, dynamic>);
+      }
+
+      log('updateReviewWithImage fail: status=$code, data=${res.data}');
       return null;
     } catch (e) {
-      log('updateReview error: $e');
+      log('updateReviewWithImage error: $e');
       return null;
     }
   }
 
-  /// DELETE /reviews/{reviewId} (리뷰 삭제)
+  /// 리뷰 삭제
   static Future<bool> deleteReview(int reviewId) async {
     try {
       final res = await ApiClient.dio.delete('/reviews/$reviewId');
-      return (res.statusCode == 200);
+      final code = res.statusCode ?? 0;
+      if (code >= 200 && code < 300) {
+        // 2xx 범위면 성공
+        return true;
+      } else {
+        log('deleteReview fail: status=$code, data=${res.data}');
+        return false;
+      }
     } catch (e) {
       log('deleteReview error: $e');
       return false;
