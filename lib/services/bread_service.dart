@@ -74,43 +74,61 @@ class BreadService {
     }
   }
 
-  /// 편집 => addBread + breadId
-  static Future<bool> updateBreadViaAddBread({
+  /// 빵 문서 수정 (이미지 없이)
+  /// POST /bread/{breadId}/update
+  /// Body(JSON):
+  /// {
+  ///   "name": "부추빵",
+  ///   "detail": "부추빵입니다.",
+  ///   "price": 3500,
+  ///   "count": 50,
+  ///   "storeIds": [1, 2, 3]
+  /// }
+  ///
+  /// 서버 응답 예(200 OK):
+  /// {
+  ///   "breadId": 101,
+  ///   "name": "부추빵",
+  ///   "detail": "부추가 들어가 맛있는 빵입니다.",
+  ///   "price": 2500,
+  ///   "count": 10,
+  ///   "imageUrl": null,
+  ///   "createdAt": "...",
+  ///   "updatedAt": "..."
+  /// }
+  static Future<Bread?> updateBreadDocNoImage({
     required int breadId,
     required String name,
     required String detail,
     required int price,
     required int count,
-    String? imageFilePath,
     required List<int> storeIds,
   }) async {
     try {
-      final formData = FormData();
-      // "breadId" param
-      formData.fields.add(const MapEntry('breadId',''));
-      formData.fields.add(MapEntry('breadId', breadId.toString()));
+      // JSON Body
+      final body = {
+        'name': name,
+        'detail': detail,
+        'price': price,
+        'count': count,
+        'storeIds': storeIds,
+      };
 
-      formData.fields.add(MapEntry('name', name));
-      formData.fields.add(MapEntry('detail', detail));
-      formData.fields.add(MapEntry('price', price.toString()));
-      formData.fields.add(MapEntry('count', count.toString()));
+      // "application/json" 로 전송
+      final res = await ApiClient.dio.post(
+        '/bread/$breadId/update',
+        data: body,
+        options: Options(contentType: Headers.jsonContentType),
+      );
 
-      for(final sid in storeIds){
-        formData.fields.add(MapEntry('storeIds', sid.toString()));
+      if (res.statusCode == 200) {
+        // 서버가 성공적으로 Bread 정보를 반환했다고 가정
+        return Bread.fromJson(res.data);
       }
-
-      if(imageFilePath!=null){
-        formData.files.add(MapEntry(
-          'image',
-          await MultipartFile.fromFile(imageFilePath),
-        ));
-      }
-
-      final res = await ApiClient.dio.post('/bread/addBread', data: formData);
-      return (res.statusCode==200);
-    } catch(e){
-      log('updateBreadViaAddBread error: $e');
-      return false;
+      return null;
+    } catch (e) {
+      log('updateBreadDocNoImage error: $e');
+      return null;
     }
   }
 }

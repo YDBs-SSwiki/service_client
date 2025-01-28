@@ -20,7 +20,7 @@ class UserInfo {
   factory UserInfo.fromJson(Map<String, dynamic> j) {
     return UserInfo(
       userId: j['userId'],
-      username: j['username'],
+      username: j['username'] ?? '(알수없음)',
       role: j['role'] ?? 'USER',
       emailAddress: j['emailAddress'],
       createdAt: j['createdAt'],
