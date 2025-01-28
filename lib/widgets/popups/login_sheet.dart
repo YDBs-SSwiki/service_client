@@ -1,5 +1,4 @@
 // lib/widgets/popups/login_sheet.dart
-
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 
@@ -12,45 +11,52 @@ class LoginSheet extends StatefulWidget {
 }
 
 class _LoginSheetState extends State<LoginSheet> {
-  Future<void> _onLogin() async {
-    final ok = await AuthService.googleLogin("fakeIdToken", "홍길동");
-    if(ok){
-      Navigator.pop(context,true);
+  Future<void> _onGoogleLogin() async {
+    final ok = await AuthService.googleLogin();
+    if (ok) {
+      Navigator.pop(context, true); // 로그인 성공 => 닫고 true
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('로그인 실패')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('구글 로그인 실패')));
     }
   }
 
-  Future<void> _onSignup() async {
-    final ok = await AuthService.googleLogin("fakeSignupToken", "신규홍길동");
-    if(ok){
-      Navigator.pop(context,true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('회원가입 실패')));
-    }
+  Future<void> _onLogout() async {
+    await AuthService.logout();
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('로그아웃 완료')));
   }
 
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom:MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SingleChildScrollView(
         child: Column(
-          mainAxisSize:MainAxisSize.min,
-          children:[
-            const SizedBox(height:16),
-            const Text('구글 로그인/회원가입', style:TextStyle(fontSize:18)),
-            const SizedBox(height:16),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            const Text(
+              '구글 로그인/회원가입',
+              style: TextStyle(fontSize: 18),
+            ),
+            const SizedBox(height: 16),
+
             ElevatedButton(
-              onPressed: _onLogin,
+              onPressed: _onGoogleLogin,
               child: const Text('구글 로그인'),
             ),
-            const SizedBox(height:8),
+            const SizedBox(height: 8),
+
+            // 만약 로그아웃 버튼을 테스트하고 싶다면:
             ElevatedButton(
-              onPressed: _onSignup,
-              child: const Text('구글 회원가입'),
+              onPressed: _onLogout,
+              child: const Text('로그아웃 (테스트)'),
             ),
-            const SizedBox(height:32),
+
+            const SizedBox(height: 32),
           ],
         ),
       ),

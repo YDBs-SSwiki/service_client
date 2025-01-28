@@ -14,6 +14,11 @@ dependencies:
   flutter_markdown: ^0.6.10   # 또는 최신 버전
   file_picker: ^8.1.7
   http_parser: ^4.0.1   # (버전은 예시) MIME 타입 지정용
+  dio_cookie_manager: ^2.0.0   # ← 쿠키 매니저 (Dio Interceptor)
+  cookie_jar: ^3.0.1          # ← 쿠키를 보관하기 위한 기본 라이브러리
+  google_sign_in: ^5.4.0       # ← 구글 로그인
+
+
 
 dev_dependencies:
   flutter_test:
