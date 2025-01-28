@@ -1,6 +1,7 @@
-// lib/services/bread_service.dart
+import 'dart:convert'; // for jsonEncode
 import 'dart:developer';
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart'; // for MediaType
 import '../models/bread.dart';
 import 'api_client.dart';
 
@@ -11,10 +12,10 @@ class BreadService {
   static Future<void> fetchAllBreads() async {
     try {
       final res = await ApiClient.dio.get('/bread');
-      final data = res.data as Map<String,dynamic>;
+      final data = res.data as Map<String, dynamic>;
       final arr = data['breads'] as List<dynamic>;
-      allBreadsCache = arr.map((e)=> Bread.fromJson(e)).toList();
-    } catch(e){
+      allBreadsCache = arr.map((e) => Bread.fromJson(e)).toList();
+    } catch (e) {
       log('fetchAllBreads error: $e');
       rethrow;
     }
@@ -25,7 +26,7 @@ class BreadService {
     try {
       final res = await ApiClient.dio.get('/bread/$breadId');
       return Bread.fromJson(res.data);
-    } catch(e){
+    } catch (e) {
       rethrow;
     }
   }
@@ -33,102 +34,126 @@ class BreadService {
   /// GET /bread/search?keyword=
   static Future<List<Bread>> searchBreads(String keyword) async {
     try {
-      final res = await ApiClient.dio.get('/bread/search', queryParameters: {
-        'keyword': keyword,
-      });
-      final data = res.data as Map<String,dynamic>;
+      final res = await ApiClient.dio.get(
+        '/bread/search',
+        queryParameters: {
+          'keyword': keyword,
+        },
+      );
+      final data = res.data as Map<String, dynamic>;
       final arr = data['searchResults'] as List<dynamic>;
-      return arr.map((e)=> Bread.fromJson(e)).toList();
-    } catch(e){
+      return arr.map((e) => Bread.fromJson(e)).toList();
+    } catch (e) {
       log('searchBreads error: $e');
       return [];
     }
   }
 
-  /// POST /bread/addBread => 새 빵 생성 or 수정
-  static Future<Bread?> addBread({
+  // ─────────────────────────────────────────────────────────────────────
+  // (1) 새 빵 등록: /bread/addBread
+  //     서버는 @RequestParam("name"),("detail"),("price"),("count"),("storeIds"),("image")
+  //     ⇒ 클라이언트는 FormData로 'name','detail','price','count','storeIds' 등
+  //        + 파일 파트("image")
+  // ─────────────────────────────────────────────────────────────────────
+  static Future<bool> addBreadAPI({
     required String name,
     required String detail,
     required int price,
     required int count,
-    required String imageFilePath,
     required List<int> storeIds,
+    required MultipartFile imageFile, // 파일 파트 이름 = "image"
   }) async {
     try {
-      final formData = FormData.fromMap({
-        'name': name,
-        'detail': detail,
-        'price': price.toString(),
-        'count': count.toString(),
-        'storeIds': storeIds.map((i)=> i.toString()).toList(),
-        'image': await MultipartFile.fromFile(imageFilePath),
-      });
-      final res = await ApiClient.dio.post('/bread/addBread', data: formData);
-      if(res.statusCode==200){
-        return Bread.fromJson(res.data);
+      // FormData 개별 필드로 구성
+      // 서버 @RequestParam("...") => name, detail, price, count, storeIds, image
+      final formData = FormData();
+
+      // 1) text fields (String)
+      formData.fields.add(MapEntry('name', name));
+      formData.fields.add(MapEntry('detail', detail));
+      formData.fields.add(MapEntry('price', price.toString()));
+      formData.fields.add(MapEntry('count', count.toString()));
+      // storeIds (List<Integer>) => 보통 Spring에서 [storeIds=1, storeIds=2, ...] 형태
+      // 간단히 아래처럼:
+      for (final sid in storeIds) {
+        formData.fields.add(MapEntry('storeIds', sid.toString()));
       }
-      return null;
-    } catch(e){
-      log('addBread error: $e');
-      return null;
+
+      // 2) image => 파일 파트
+      // ★ imageFile 자체가 이미 contentType을 가질 수 있음
+      formData.files.add(MapEntry('image', imageFile));
+
+      // 3) 전송
+      final res = await ApiClient.dio.post(
+        '/bread/addBread',
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data', // multipart
+        ),
+      );
+
+      return (res.statusCode == 200);
+    } catch (e) {
+      log('addBreadAPI error: $e');
+      return false;
     }
   }
 
-  /// 빵 문서 수정 (이미지 없이)
-  /// POST /bread/{breadId}/update
-  /// Body(JSON):
-  /// {
-  ///   "name": "부추빵",
-  ///   "detail": "부추빵입니다.",
-  ///   "price": 3500,
-  ///   "count": 50,
-  ///   "storeIds": [1, 2, 3]
-  /// }
-  ///
-  /// 서버 응답 예(200 OK):
-  /// {
-  ///   "breadId": 101,
-  ///   "name": "부추빵",
-  ///   "detail": "부추가 들어가 맛있는 빵입니다.",
-  ///   "price": 2500,
-  ///   "count": 10,
-  ///   "imageUrl": null,
-  ///   "createdAt": "...",
-  ///   "updatedAt": "..."
-  /// }
-  static Future<Bread?> updateBreadDocNoImage({
+  // ─────────────────────────────────────────────────────────────────────
+  // (2) 기존 빵 수정: /bread/{breadId}/update
+  //     서버는 @RequestPart("bread") UpdateBreadRequestDTO, @RequestPart("imageFile", required=false)
+  // ─────────────────────────────────────────────────────────────────────
+  static Future<bool> updateBreadDocWithImage({
     required int breadId,
     required String name,
     required String detail,
     required int price,
     required int count,
     required List<int> storeIds,
+    MultipartFile? imageFile, // optional
   }) async {
     try {
-      // JSON Body
-      final body = {
+      // (A) JSON -> "bread" 파트
+      final breadMap = {
         'name': name,
         'detail': detail,
         'price': price,
         'count': count,
         'storeIds': storeIds,
       };
+      final breadString = jsonEncode(breadMap);
 
-      // "application/json" 로 전송
-      final res = await ApiClient.dio.post(
-        '/bread/$breadId/update',
-        data: body,
-        options: Options(contentType: Headers.jsonContentType),
+      // ★ multipart/form-data에서 "bread"를 Content-Type: application/json으로
+      //   보내고 싶다면, MultipartFile.fromString(...) 사용
+      final breadPart = MultipartFile.fromString(
+        breadString,
+        filename: 'bread.json',
+        contentType: MediaType('application', 'json'),
       );
 
-      if (res.statusCode == 200) {
-        // 서버가 성공적으로 Bread 정보를 반환했다고 가정
-        return Bread.fromJson(res.data);
+      // (B) FormData
+      final formData = FormData();
+
+      // "bread" 파트 (JSON, application/json)
+      formData.files.add(MapEntry('bread', breadPart));
+
+      // "imageFile" 파트 (파일, optional)
+      if (imageFile != null) {
+        formData.files.add(MapEntry('imageFile', imageFile));
       }
-      return null;
+
+      // (C) POST
+      final res = await ApiClient.dio.post(
+        '/bread/$breadId/update',
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data', // multipart
+        ),
+      );
+      return (res.statusCode == 200);
     } catch (e) {
-      log('updateBreadDocNoImage error: $e');
-      return null;
+      log('updateBreadDocWithImage error: $e');
+      return false;
     }
   }
 }
